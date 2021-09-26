@@ -1,13 +1,11 @@
 import os
-import sys
-import time
 
-import matplotlib.pyplot as plt
+import gym
 import numpy as np
 
 from SimpleDQN import SimpleDQN
+#not technically needed here but it'll fail later if it's not available, so keeping it
 import TurtleBot_v0
-import gym
 
 
 def CheckTrainingDoneCallback(reward_array, done_array, env):
