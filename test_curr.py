@@ -8,6 +8,8 @@ from SimpleDQN import SimpleDQN
 # not technically needed here but it'll fail later if it's not available, so keeping it
 import TurtleBot_v0
 
+from abc import ABCMeta, abstractmethod
+
 
 def CheckTrainingDoneCallback(reward_array, done_array, env):
 
@@ -35,13 +37,103 @@ def CheckTrainingDoneCallback(reward_array, done_array, env):
 
 
 class CurriculumAgent(object):
-    # TODO
+    def __init__(self, seed):
+        self.seed = seed
+
+    @abstractmethod
+    def agent_init(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def agent_load(self, curriculum_no, beam_no, env_no):
+        raise NotImplementedError
+
+    @abstractmethod
+    def process_step(self, obs):
+        raise NotImplementedError
+
+    @abstractmethod
+    def give_reward(self, reward):
+        raise NotImplementedError
+
+    @abstractmethod
+    def finish_episode(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_parameters(self):
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_model(self, curriculum_no, beam_no, env_no):
+        raise NotImplementedError
+
+class SimpleDQN_CurriculumAgent(CurriculumAgent):
     def __init__(self):
+        print("Current seed: " + self.seed)
+
+        self.actionCnt = 5
+        self.D = 83  # 90 beams x 4 items lidar + 3 inventory items
+        self.NUM_HIDDEN = 16
+        self.GAMMA = 0.995
+        self.LEARNING_RATE = 1e-3
+        self.DECAY_RATE = 0.99
+        self.MAX_EPSILON = 0.1
+
+        self.agent = None
+
+    def agent_init(self):
+        self.agent = SimpleDQN(
+            self.actionCnt,
+            self.D,
+            self.NUM_HIDDEN,
+            self.LEARNING_RATE,
+            self.GAMMA,
+            self.DECAY_RATE,
+            self.MAX_EPSILON,
+            self.seed,
+        )
+        self.agent.set_explore_epsilon(self.MAX_EPSILON)
+
+    def agent_load(self, curriculum_no, beam_no, env_no):
+        if self.agent is not None:
+            self.agent.load_model(curriculum_no, beam_no, env_no)
+            self.agent.reset()
+
+    def process_step(self, obs):
+        if self.agent is not None:
+            return self.agent.process_step(obs, True)
+
+    def give_reward(self, reward):
+        if self.agent is not None:
+            self.agent.give_reward(reward)
+
+    def finish_episode(self):
+        if self.agent is not None:
+            self.agent.finish_episode()
+
+    def update_parameters(self):
+        if self.agent is not None:
+            self.agent.update_parameters()
+
+    def save_model(self, curriculum_no, beam_no, env_no):
+        if self.agent is not None:
+            self.agent.save_model(curriculum_no, beam_no, env_no)
+
+
+class DQNLambda_CurriculumAgent(CurriculumAgent):
+    def __init__(self):
+        print("Current seed: " + self.seed)
+
+    def agent_init(self):
+        pass
+
+    def agent_step(self):
         pass
 
 
 class CurriculumRunner(object):
-    def __init__(self, agent: CurriculumAgent, random_seed=1):
+    def __init__(self, curriculum_agent: CurriculumAgent, random_seed=1):
         self.no_of_environments = 4
 
         self.width_array = [1.5, 2.5, 3, 3]
@@ -57,19 +149,13 @@ class CurriculumRunner(object):
         self.total_reward_array = []
         self.avg_reward_array = []
         self.task_completion_array = []
-
-        self.actionCnt = 5
-        self.D = 83  # 90 beams x 4 items lidar + 3 inventory items
-        self.NUM_HIDDEN = 16
-        self.GAMMA = 0.995
-        self.LEARNING_RATE = 1e-3
-        self.DECAY_RATE = 0.99
-        self.MAX_EPSILON = 0.1
         self.random_seed = random_seed
 
         # agent = SimpleDQN(actionCnt,D,NUM_HIDDEN,LEARNING_RATE,GAMMA,DECAY_RATE,MAX_EPSILON,random_seed)
         # agent.set_explore_epsilon(MAX_EPSILON)
         self.total_episodes_arr = []
+
+        self.curriculum_agent = curriculum_agent
 
     def run(self):
         for i in range(self.no_of_environments):
@@ -87,31 +173,10 @@ class CurriculumRunner(object):
             final_status = False
 
             if i == 0:
-                agent = SimpleDQN(
-                    self.actionCnt,
-                    self.D,
-                    self.NUM_HIDDEN,
-                    self.LEARNING_RATE,
-                    self.GAMMA,
-                    self.DECAY_RATE,
-                    self.MAX_EPSILON,
-                    self.random_seed,
-                )
-                agent.set_explore_epsilon(self.MAX_EPSILON)
+                self.curriculum_agent.agent_init()
             else:
-                agent = SimpleDQN(
-                    self.actionCnt,
-                    self.D,
-                    self.NUM_HIDDEN,
-                    self.LEARNING_RATE,
-                    self.GAMMA,
-                    self.DECAY_RATE,
-                    self.MAX_EPSILON,
-                    self.random_seed,
-                )
-                agent.set_explore_epsilon(self.MAX_EPSILON)
-                agent.load_model(0, 0, i - 1)
-                agent.reset()
+                self.curriculum_agent.agent_init()
+                self.curriculum_agent.agent_load(0, 0, i-1)
                 print("loaded model")
 
             if i == self.no_of_environments - 1:
@@ -156,12 +221,12 @@ class CurriculumRunner(object):
                 obs = env.get_observation()
 
                 # act
-                a = agent.process_step(obs, True)
+                a = self.curriculum_agent.process_step(obs)
 
                 _, reward, done, _ = env.step(a)
 
                 # give reward
-                agent.give_reward(reward)
+                self.curriculum_agent.give_reward(reward)
                 reward_sum += reward
 
                 t_step += 1
@@ -193,11 +258,11 @@ class CurriculumRunner(object):
 
                     done = True
                     t_step = 0
-                    agent.finish_episode()
+                    self.curriculum_agent.finish_episode()
 
                     # update after every episode
                     if episode % 10 == 0:
-                        agent.update_parameters()
+                        self.curriculum_agent.update_parameters()
 
                     # reset environment
                     episode += 1
@@ -211,8 +276,7 @@ class CurriculumRunner(object):
 
                     # quit after some number of episodes
                     if episode > 70000 or env_flag == 1:
-
-                        agent.save_model(0, 0, i)
+                        self.curriculum_agent.save_model(0,0,i)
                         self.total_episodes_arr.append(episode)
 
                         break
@@ -324,7 +388,7 @@ class CurriculumRunner(object):
 
 
 def main():
-    cr = CurriculumRunner(CurriculumAgent())
+    cr = CurriculumRunner(CurriculumAgent(1))
     cr.run()
 
 
