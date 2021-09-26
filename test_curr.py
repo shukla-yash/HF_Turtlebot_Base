@@ -2,13 +2,14 @@ import os
 
 import gym
 import numpy as np
-
 from SimpleDQN import SimpleDQN
+
+import argparse
 
 # not technically needed here but it'll fail later if it's not available, so keeping it
 import TurtleBot_v0
 
-from abc import ABCMeta, abstractmethod
+from abc import abstractmethod
 
 
 def CheckTrainingDoneCallback(reward_array, done_array, env):
@@ -37,8 +38,14 @@ def CheckTrainingDoneCallback(reward_array, done_array, env):
 
 
 class CurriculumAgent(object):
-    def __init__(self, seed):
+    def __init__(self, seed: int):
         self.seed = seed
+        print("Current seed: " + str(self.seed))
+        self.init()
+
+    @abstractmethod
+    def init(self):
+        raise NotImplementedError
 
     @abstractmethod
     def agent_init(self):
@@ -68,10 +75,9 @@ class CurriculumAgent(object):
     def save_model(self, curriculum_no, beam_no, env_no):
         raise NotImplementedError
 
-class SimpleDQN_CurriculumAgent(CurriculumAgent):
-    def __init__(self):
-        print("Current seed: " + self.seed)
 
+class SimpleDQN_CurriculumAgent(CurriculumAgent):
+    def init(self):
         self.actionCnt = 5
         self.D = 83  # 90 beams x 4 items lidar + 3 inventory items
         self.NUM_HIDDEN = 16
@@ -122,13 +128,28 @@ class SimpleDQN_CurriculumAgent(CurriculumAgent):
 
 
 class DQNLambda_CurriculumAgent(CurriculumAgent):
-    def __init__(self):
-        print("Current seed: " + self.seed)
+    def init(self):
+        pass
 
     def agent_init(self):
         pass
 
-    def agent_step(self):
+    def agent_load(self, curriculum_no, beam_no, env_no):
+        pass
+
+    def process_step(self, obs):
+        pass
+
+    def give_reward(self, reward):
+        pass
+
+    def finish_episode(self):
+        pass
+
+    def update_parameters(self):
+        pass
+
+    def save_model(self, curriculum_no, beam_no, env_no):
         pass
 
 
@@ -151,8 +172,6 @@ class CurriculumRunner(object):
         self.task_completion_array = []
         self.random_seed = random_seed
 
-        # agent = SimpleDQN(actionCnt,D,NUM_HIDDEN,LEARNING_RATE,GAMMA,DECAY_RATE,MAX_EPSILON,random_seed)
-        # agent.set_explore_epsilon(MAX_EPSILON)
         self.total_episodes_arr = []
 
         self.curriculum_agent = curriculum_agent
@@ -176,7 +195,7 @@ class CurriculumRunner(object):
                 self.curriculum_agent.agent_init()
             else:
                 self.curriculum_agent.agent_init()
-                self.curriculum_agent.agent_load(0, 0, i-1)
+                self.curriculum_agent.agent_load(0, 0, i - 1)
                 print("loaded model")
 
             if i == self.no_of_environments - 1:
@@ -276,7 +295,7 @@ class CurriculumRunner(object):
 
                     # quit after some number of episodes
                     if episode > 70000 or env_flag == 1:
-                        self.curriculum_agent.save_model(0,0,i)
+                        self.curriculum_agent.save_model(0, 0, i)
                         self.total_episodes_arr.append(episode)
 
                         break
@@ -388,8 +407,17 @@ class CurriculumRunner(object):
 
 
 def main():
-    cr = CurriculumRunner(CurriculumAgent(1))
-    cr.run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', choices={'simpledqn', 'dqnlambda'}, default='simpledqn')
+    args = parser.parse_args()
+    cr = None
+    if args.mode == 'simpledqn':
+        cr = CurriculumRunner(SimpleDQN_CurriculumAgent(1))
+    if args.mode == 'dqnlambda':
+        cr = CurriculumRunner(DQNLambda_CurriculumAgent(1))
+
+    if cr is not None and issubclass(CurriculumRunner, cr.__class__):
+        cr.run()
 
 
 if __name__ == "__main__":
