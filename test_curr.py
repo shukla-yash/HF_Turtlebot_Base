@@ -4,7 +4,8 @@ import gym
 import numpy as np
 
 from SimpleDQN import SimpleDQN
-#not technically needed here but it'll fail later if it's not available, so keeping it
+
+# not technically needed here but it'll fail later if it's not available, so keeping it
 import TurtleBot_v0
 
 
@@ -33,8 +34,7 @@ def CheckTrainingDoneCallback(reward_array, done_array, env):
         return 0
 
 
-if __name__ == "__main__":
-
+def main():
     no_of_environmets = 4
 
     width_array = [1.5, 2.5, 3, 3]
@@ -49,9 +49,6 @@ if __name__ == "__main__":
     total_timesteps_array = []
     total_reward_array = []
     avg_reward_array = []
-    final_timesteps_array = []
-    final_reward_array = []
-    final_avg_reward_array = []
     task_completion_array = []
 
     actionCnt = 5
@@ -65,7 +62,6 @@ if __name__ == "__main__":
 
     # agent = SimpleDQN(actionCnt,D,NUM_HIDDEN,LEARNING_RATE,GAMMA,DECAY_RATE,MAX_EPSILON,random_seed)
     # agent.set_explore_epsilon(MAX_EPSILON)
-    action_space = ["W", "A", "D", "U", "C"]
     total_episodes_arr = []
 
     for i in range(no_of_environmets):
@@ -155,7 +151,7 @@ if __name__ == "__main__":
             # act
             a = agent.process_step(obs, True)
 
-            new_obs, reward, done, info = env.step(a)
+            _, reward, done, _ = env.step(a)
 
             # give reward
             agent.give_reward(reward)
@@ -219,19 +215,19 @@ if __name__ == "__main__":
     log_dir = "logs_" + str(random_seed)
     os.makedirs(log_dir, exist_ok=True)
 
-    total_timesteps_array = np.asarray(total_timesteps_array)
+    total_timesteps_array = np.asarray(total_timesteps_array)  # type: ignore (linter being picky about object membership)
     print("size total_timesteps_array: ", total_timesteps_array.shape)
 
-    total_reward_array = np.asarray(total_reward_array)
+    total_reward_array = np.asarray(total_reward_array)  # type: ignore (linter being picky about object membership)
     print("size total_reward_array: ", total_reward_array.shape)
 
-    avg_reward_array = np.asarray(avg_reward_array)
+    avg_reward_array = np.asarray(avg_reward_array)  # type: ignore (linter being picky about object membership)
     print("size avg_reward_array: ", avg_reward_array.shape)
 
-    total_episodes_arr = np.asarray(total_episodes_arr)
+    total_episodes_arr = np.asarray(total_episodes_arr)  # type: ignore (linter being picky about object membership)
     print("size total_episodes_arr: ", total_episodes_arr.shape)
 
-    task_completion_arr = np.asarray(task_completion_array)
+    task_completion_arr = np.asarray(task_completion_array)  # type: ignore (linter being picky about object membership)
 
     # final_timesteps_array = np.asarray(final_timesteps_array)
     # print("size final_timesteps_array: ", final_timesteps_array.shape)
@@ -313,3 +309,6 @@ if __name__ == "__main__":
     # np.savez_compressed(path_to_save_final_avg_reward, final_avg_reward = final_avg_reward_array)
     # # np.delete(final_avg_reward_array)
 
+
+if __name__ == "__main__":
+    main()
