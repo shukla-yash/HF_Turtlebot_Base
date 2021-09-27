@@ -8,6 +8,7 @@ from dqnlambda import dqn as LambdaDQN
 
 import argparse
 import tensorflow as tf
+from tensorflow.python.layers.layers import conv2d, dense, flatten
 
 # not technically needed here but it'll fail later if it's not available, so keeping it
 import TurtleBot_v0
@@ -42,6 +43,8 @@ def CheckTrainingDoneCallback(reward_array, done_array, env):
 
 class CurriculumAgent(object):
     def __init__(self, seed: int):
+        self.MAX_EPSILON = 0.1
+
         self.seed = seed
         print("Current seed: " + str(self.seed))
         self.init()
@@ -87,7 +90,6 @@ class SimpleDQN_CurriculumAgent(CurriculumAgent):
         self.GAMMA = 0.995
         self.LEARNING_RATE = 1e-3
         self.DECAY_RATE = 0.99
-        self.MAX_EPSILON = 0.1
 
         self.agent = None
 
@@ -136,19 +138,23 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
         self.session = tf.Session()
 
     def save_model(self, curriculum_no, beam_no, env_no):
-        log_dir = 'results'
-        env_id = 'NovelGridworld-v0'
+        log_dir = "results"
+        env_id = "NovelGridworld-v0"
         saver = tf.train.Saver()
 
-        experiment_file_name = '_c' + str(curriculum_no) + '_b' + str(beam_no) + '_e' + str(env_no)
+        experiment_file_name = (
+            "_c" + str(curriculum_no) + "_b" + str(beam_no) + "_e" + str(env_no)
+        )
         path_to_save = log_dir + os.sep + env_id + experiment_file_name
 
         saver.save(self.session, path_to_save)
 
     def agent_load(self, curriculum_no, beam_no, env_no):
-        log_dir = 'results'
-        env_id = 'NovelGridworld-v0'
-        experiment_file_name = '_c' + str(curriculum_no) + '_b' + str(beam_no) + '_e' + str(env_no)
+        log_dir = "results"
+        env_id = "NovelGridworld-v0"
+        experiment_file_name = (
+            "_c" + str(curriculum_no) + "_b" + str(beam_no) + "_e" + str(env_no)
+        )
         filename = log_dir + os.sep + env_id + experiment_file_name
         saver = tf.train.import_meta_graph(filename)
         if saver is not None:
@@ -158,7 +164,10 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
         pass
 
     def process_step(self, obs):
-        del obs
+        self.agent.replay_memory.store_obs(obs)
+        state = self.agent.replay_memory.encode_recent_observation()
+
+        return self.epsilon_greedy(state, self.MAX_EPSILON)
 
     def give_reward(self, reward):
         del reward
@@ -169,13 +178,39 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
     def update_parameters(self):
         pass
 
-    def epsilon_greedy(self, state, epsilon, env):
-        if np.random.random() < epsilon:  # type: ignore
-            action = env.action_space.sample()
-        else:
-            action = session.run(greedy_actions, feed_dict={state_ph: state[None]})[0] # type: ignore
-        return action
+    def q_function(self, state_ph, n_actions, scope):
+        # TODO- stand-in from atari env, probably needs to be customized a bit
+        hidden = tf.cast(state, tf.float32) / 255.0  # type: ignore
+        hidden = tf.unstack(hidden, axis=1)
+        hidden = tf.concat(hidden, axis=-1)
 
+        with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
+            hidden = conv2d(
+                hidden, filters=32, kernel_size=8, strides=4, activation=tf.nn.relu
+            )
+            hidden = conv2d(
+                hidden, filters=64, kernel_size=4, strides=2, activation=tf.nn.relu
+            )
+            hidden = conv2d(
+                hidden, filters=64, kernel_size=3, strides=1, activation=tf.nn.relu
+            )
+
+            hidden = flatten(hidden)
+
+            hidden = dense(hidden, units=512, activation=tf.nn.relu)
+            qvalues = dense(hidden, units=n_actions, activation=None)
+
+        return qvalues
+
+    def epsilon_greedy(self, state, epsilon):
+        if np.random.random() < epsilon:  # type: ignore
+            u = np.random.uniform()  # type: ignore
+            action = np.where(u <= aprob_cum)[0][0]
+        else:
+            qvalues = self.q_function(state_ph, n_actions, scope="main")
+            greedy_actions = tf.argmax(qvalues, axis=1)
+            action = session.run(greedy_actions, feed_dict={state_ph: state[None]})[0]
+        return action
 
 
 class CurriculumRunner(object):
@@ -433,12 +468,14 @@ class CurriculumRunner(object):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices={'simpledqn', 'dqnlambda'}, default='simpledqn')
+    parser.add_argument(
+        "--mode", choices={"simpledqn", "dqnlambda"}, default="simpledqn"
+    )
     args = parser.parse_args()
     cr = None
-    if args.mode == 'simpledqn':
+    if args.mode == "simpledqn":
         cr = CurriculumRunner(SimpleDQN_CurriculumAgent(1))
-    if args.mode == 'dqnlambda':
+    if args.mode == "dqnlambda":
         cr = CurriculumRunner(DQNLambda_CurriculumAgent(1))
 
     if cr is not None and issubclass(CurriculumRunner, cr.__class__):

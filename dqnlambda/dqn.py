@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 import time
 
+import os
+
 from utils import *
 from wrappers import HistoryWrapper
 from replay_memory_legacy import LegacyReplayMemory
