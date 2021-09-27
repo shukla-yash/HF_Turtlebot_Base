@@ -7,6 +7,7 @@ from SimpleDQN import SimpleDQN
 from dqnlambda import dqn as LambdaDQN
 from dqnlambda.utils import minimize_with_grad_clipping
 from dqnlambda.wrappers import HistoryWrapper
+import dqnlambda.replay_memory import make_replay_memory
 
 import argparse
 import tensorflow as tf
@@ -139,11 +140,18 @@ class SimpleDQN_CurriculumAgent(CurriculumAgent):
 
 class DQNLambda_CurriculumAgent(CurriculumAgent):
     def init(self):
-        self.agent = LambdaDQN()
         self.session = tf.Session()
         self.done = False
 
         self.n_actions = self.env.action_space.n
+
+        self.return_est='nstep-1'
+        self.mem_size=1e6
+        self.history_len=4
+        self.discount=0.99
+        self.cache_size=80e3
+        self.block_size=100
+        self.priority=0.0
 
     def save_model(self, curriculum_no, beam_no, env_no):
         log_dir = "results"
@@ -170,9 +178,11 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
 
     def agent_init(self):
         grad_clip = None # defaults to None in the impl, but this feels wrong...
-        input_shape = (self.agent.replay_memory.history_len, *self.env.observation_space.shape)
+        self.replay_memory = make_replay_memory(self.return_est, self.mem_size, self.history_len, self.discount,
+                                           self.cache_size, self.block_size, self.priority)
+        input_shape = (self.replay_memory.history_len, *self.env.observation_space.shape)
         n_actions = self.env.action_space.n
-        self.benchmark_env = HistoryWrapper(self.benchmark_env, self.agent.replay_memory.history_len)
+        self.benchmark_env = HistoryWrapper(self.benchmark_env, self.replay_memory.history_len)
 
         # Build TensorFlow model
         self.state_ph  = tf.placeholder(self.env.observation_space.dtype, [None] + list(input_shape))
@@ -194,7 +204,7 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
         optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, epsilon=1e-4)
         self.train_op = minimize_with_grad_clipping(optimizer, loss, main_vars, grad_clip)
 
-        self.agent.replay_memory.register_refresh_func(self.refresh)
+        self.replay_memory.register_refresh_func(self.refresh)
 
         self.session.run(tf.global_variables_initializer())
 
@@ -208,16 +218,14 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
         mask = (actions == greedy_acts[:-1])
         return greedy_qvals, mask, onpolicy_qvals
 
-
-
     def process_step(self, obs):
-        self.agent.replay_memory.store_obs(obs)
-        state = self.agent.replay_memory.encode_recent_observation()
+        self.replay_memory.store_obs(obs)
+        state = self.replay_memory.encode_recent_observation()
 
         return self.epsilon_greedy(state, self.MAX_EPSILON)
 
     def give_reward(self, reward, action):
-        self.agent.replay_memory.store_effect(action, reward, self.done)
+        self.replay_memory.store_effect(action, reward, self.done)
 
     def finish_episode(self):
         # my understanding of dqn-lambda implementation is that there's no need
