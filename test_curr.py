@@ -7,7 +7,7 @@ from SimpleDQN import SimpleDQN
 from dqnlambda import dqn as LambdaDQN
 from dqnlambda.utils import minimize_with_grad_clipping
 from dqnlambda.wrappers import HistoryWrapper
-import dqnlambda.replay_memory import make_replay_memory
+from dqnlambda.replay_memory import make_replay_memory
 
 import argparse
 import tensorflow as tf
@@ -143,8 +143,6 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
         self.session = tf.Session()
         self.done = False
 
-        self.n_actions = self.env.action_space.n
-
         self.return_est='nstep-1'
         self.mem_size=1e6
         self.history_len=4
@@ -178,6 +176,7 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
 
     def agent_init(self):
         grad_clip = None # defaults to None in the impl, but this feels wrong...
+        self.n_actions = self.env.action_space.n
         self.replay_memory = make_replay_memory(self.return_est, self.mem_size, self.history_len, self.discount,
                                            self.cache_size, self.block_size, self.priority)
         input_shape = (self.replay_memory.history_len, *self.env.observation_space.shape)
@@ -309,13 +308,6 @@ class CurriculumRunner(object):
 
             final_status = False
 
-            if i == 0:
-                self.curriculum_agent.agent_init()
-            else:
-                self.curriculum_agent.agent_init()
-                self.curriculum_agent.agent_load(0, 0, i - 1)
-                print("loaded model")
-
             if i == self.no_of_environments - 1:
                 final_status = True
 
@@ -340,6 +332,13 @@ class CurriculumRunner(object):
                 goal_env=type_of_env,
                 is_final=final_status,
             )
+
+            self.curriculum_agent.set_env(env)
+            self.curriculum_agent.agent_init()
+            if i != 0:
+                self.curriculum_agent.agent_load(0, 0, i - 1)
+                print("loaded model")
+
 
             t_step = 0
             episode = 0
