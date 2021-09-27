@@ -5,6 +5,8 @@ import numpy as np
 from SimpleDQN import SimpleDQN
 
 from dqnlambda import dqn as LambdaDQN
+from dqnlambda.utils import minimize_with_grad_clipping
+from dqnlambda.wrappers import HistoryWrapper
 
 import argparse
 import tensorflow as tf
@@ -66,7 +68,7 @@ class CurriculumAgent(object):
         raise NotImplementedError
 
     @abstractmethod
-    def give_reward(self, reward):
+    def give_reward(self, reward, action=None):
         raise NotImplementedError
 
     @abstractmethod
@@ -81,6 +83,8 @@ class CurriculumAgent(object):
     def save_model(self, curriculum_no, beam_no, env_no):
         raise NotImplementedError
 
+    def set_env(self, env):
+        self.env = env
 
 class SimpleDQN_CurriculumAgent(CurriculumAgent):
     def init(self):
@@ -115,7 +119,8 @@ class SimpleDQN_CurriculumAgent(CurriculumAgent):
         if self.agent is not None:
             return self.agent.process_step(obs, True)
 
-    def give_reward(self, reward):
+    def give_reward(self, reward, action=None):
+        del action
         if self.agent is not None:
             self.agent.give_reward(reward)
 
@@ -136,6 +141,9 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
     def init(self):
         self.agent = LambdaDQN()
         self.session = tf.Session()
+        self.done = False
+
+        self.n_actions = self.env.action_space.n
 
     def save_model(self, curriculum_no, beam_no, env_no):
         log_dir = "results"
@@ -161,7 +169,46 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
             saver.restore(self.session, log_dir + os.sep)
 
     def agent_init(self):
-        pass
+        grad_clip = None # defaults to None in the impl, but this feels wrong...
+        input_shape = (self.agent.replay_memory.history_len, *self.env.observation_space.shape)
+        n_actions = self.env.action_space.n
+        self.benchmark_env = HistoryWrapper(self.benchmark_env, self.agent.replay_memory.history_len)
+
+        # Build TensorFlow model
+        self.state_ph  = tf.placeholder(self.env.observation_space.dtype, [None] + list(input_shape))
+        self.action_ph = tf.placeholder(tf.int32, [None])
+        self.return_ph = tf.placeholder(tf.float32, [None])
+
+        qvalues = self.q_function(self.state_ph, n_actions, scope='main')
+
+        self.greedy_actions = tf.argmax(qvalues, axis=1)
+        self.greedy_qvalues = tf.reduce_max(qvalues, axis=1)
+
+        action_indices = tf.stack([tf.range(tf.size(self.action_ph)), self.action_ph], axis=-1)
+        self.onpolicy_qvalues = tf.gather_nd(qvalues, action_indices)
+
+        td_error = self.return_ph - self.onpolicy_qvalues #type: ignore
+        loss = tf.reduce_mean(tf.square(td_error))
+
+        main_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='main')
+        optimizer = tf.train.AdamOptimizer(learning_rate=1e-4, epsilon=1e-4)
+        self.train_op = minimize_with_grad_clipping(optimizer, loss, main_vars, grad_clip)
+
+        self.agent.replay_memory.register_refresh_func(self.refresh)
+
+        self.session.run(tf.global_variables_initializer())
+
+    def refresh(self, states, actions):
+        assert len(states) == len(actions) + 1  # We should have an extra bootstrap state
+        assert (self.session is not None)
+        greedy_qvals, greedy_acts, onpolicy_qvals = self.session.run([self.greedy_qvalues, self.greedy_actions, self.onpolicy_qvalues], feed_dict={
+            self.state_ph: states,
+            self.action_ph: actions,
+            }) #type: ignore
+        mask = (actions == greedy_acts[:-1])
+        return greedy_qvals, mask, onpolicy_qvals
+
+
 
     def process_step(self, obs):
         self.agent.replay_memory.store_obs(obs)
@@ -169,11 +216,14 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
 
         return self.epsilon_greedy(state, self.MAX_EPSILON)
 
-    def give_reward(self, reward):
-        del reward
+    def give_reward(self, reward, action):
+        self.agent.replay_memory.store_effect(action, reward, self.done)
 
     def finish_episode(self):
-        pass
+        # my understanding of dqn-lambda implementation is that there's no need
+        # to make use of this clean-up step, since the same accumuation is
+        # happening at the end of each step. But I might be totally wrong here.
+        self.done = True
 
     def update_parameters(self):
         pass
@@ -207,9 +257,10 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
             u = np.random.uniform()  # type: ignore
             action = np.where(u <= aprob_cum)[0][0]
         else:
-            qvalues = self.q_function(state_ph, n_actions, scope="main")
+            qvalues = self.q_function(self.state_ph, self.n_actions, scope="main")
             greedy_actions = tf.argmax(qvalues, axis=1)
-            action = session.run(greedy_actions, feed_dict={state_ph: state[None]})[0]
+            assert self.session is not None
+            action = self.session.run(greedy_actions, feed_dict={self.state_ph: state[None]})[0]
         return action
 
 
@@ -305,7 +356,7 @@ class CurriculumRunner(object):
                 _, reward, done, _ = env.step(a)
 
                 # give reward
-                self.curriculum_agent.give_reward(reward)
+                self.curriculum_agent.give_reward(reward, a)
                 reward_sum += reward
 
                 t_step += 1
