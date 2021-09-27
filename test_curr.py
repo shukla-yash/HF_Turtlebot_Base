@@ -5,11 +5,9 @@ import numpy as np
 from SimpleDQN import SimpleDQN
 
 from dqnlambda import dqn as LambdaDQN
-from dqnlambda import utils as LambdaDQNutils
-from dqnlambda import q_functions as LambdaDQNqfunctions
-from dqnlambda.replay_memory import make_replay_memory as LambdaDQNmakereplaymemory
 
 import argparse
+import tensorflow as tf
 
 # not technically needed here but it'll fail later if it's not available, so keeping it
 import TurtleBot_v0
@@ -135,18 +133,35 @@ class SimpleDQN_CurriculumAgent(CurriculumAgent):
 class DQNLambda_CurriculumAgent(CurriculumAgent):
     def init(self):
         self.agent = LambdaDQN()
+        self.session = tf.Session()
+
+    def save_model(self, curriculum_no, beam_no, env_no):
+        log_dir = 'results'
+        env_id = 'NovelGridworld-v0'
+        saver = tf.train.Saver()
+
+        experiment_file_name = '_c' + str(curriculum_no) + '_b' + str(beam_no) + '_e' + str(env_no)
+        path_to_save = log_dir + os.sep + env_id + experiment_file_name
+
+        saver.save(self.session, path_to_save)
+
+    def agent_load(self, curriculum_no, beam_no, env_no):
+        log_dir = 'results'
+        env_id = 'NovelGridworld-v0'
+        experiment_file_name = '_c' + str(curriculum_no) + '_b' + str(beam_no) + '_e' + str(env_no)
+        filename = log_dir + os.sep + env_id + experiment_file_name
+        saver = tf.train.import_meta_graph(filename)
+        if saver is not None:
+            saver.restore(self.session, log_dir + os.sep)
 
     def agent_init(self):
         pass
 
-    def agent_load(self, curriculum_no, beam_no, env_no):
-        pass
-
     def process_step(self, obs):
-        pass
+        del obs
 
     def give_reward(self, reward):
-        pass
+        del reward
 
     def finish_episode(self):
         pass
@@ -154,8 +169,13 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
     def update_parameters(self):
         pass
 
-    def save_model(self, curriculum_no, beam_no, env_no):
-        pass
+    def epsilon_greedy(self, state, epsilon, env):
+        if np.random.random() < epsilon:  # type: ignore
+            action = env.action_space.sample()
+        else:
+            action = session.run(greedy_actions, feed_dict={state_ph: state[None]})[0] # type: ignore
+        return action
+
 
 
 class CurriculumRunner(object):
