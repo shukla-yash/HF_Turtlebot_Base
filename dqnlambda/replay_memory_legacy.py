@@ -1,7 +1,7 @@
 import numpy as np
 import re
 
-from replay_memory import NStepReplayMemory
+from dqnlambda.replay_memory import NStepReplayMemory
 
 
 def make_legacy_replay_memory(return_est, capacity, history_len, discount):

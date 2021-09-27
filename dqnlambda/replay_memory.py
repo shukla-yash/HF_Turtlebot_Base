@@ -1,7 +1,7 @@
 import numpy as np
 import re
 
-from return_calculation import calculate_lambda_returns, calculate_nstep_returns
+from dqnlambda.return_calculation import calculate_lambda_returns, calculate_nstep_returns
 
 
 def make_replay_memory(return_est, capacity, history_len, discount, cache_size, block_size, priority):

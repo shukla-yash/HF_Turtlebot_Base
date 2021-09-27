@@ -254,13 +254,12 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
 
     def epsilon_greedy(self, state, epsilon):
         if np.random.random() < epsilon:  # type: ignore
-            u = np.random.uniform()  # type: ignore
-            action = np.where(u <= aprob_cum)[0][0]
+            action = np.random.choice(range(0, self.n_actions)) # type: ignore
         else:
             qvalues = self.q_function(self.state_ph, self.n_actions, scope="main")
             greedy_actions = tf.argmax(qvalues, axis=1)
             assert self.session is not None
-            action = self.session.run(greedy_actions, feed_dict={self.state_ph: state[None]})[0]
+            action = self.session.run(greedy_actions, feed_dict={self.state_ph: state[None]})[0] # type: ignore
         return action
 
 

@@ -4,11 +4,9 @@ import numpy as np
 import tensorflow as tf
 import time
 
-import os
-
-from utils import *
-from wrappers import HistoryWrapper
-from replay_memory_legacy import LegacyReplayMemory
+from dqnlambda.utils import *
+from dqnlambda.wrappers import HistoryWrapper
+from dqnlambda.replay_memory_legacy import LegacyReplayMemory
 
 
 def learn(
