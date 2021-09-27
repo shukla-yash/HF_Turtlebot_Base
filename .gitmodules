@@ -1,3 +1,0 @@
-[submodule "dqn-lambda"]
-	path = dqnlambda
-	url = https://github.com/brett-daley/dqn-lambda.git

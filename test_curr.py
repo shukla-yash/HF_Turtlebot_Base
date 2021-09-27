@@ -4,6 +4,11 @@ import gym
 import numpy as np
 from SimpleDQN import SimpleDQN
 
+from dqnlambda import dqn as LambdaDQN
+from dqnlambda import utils as LambdaDQNutils
+from dqnlambda import q_functions as LambdaDQNqfunctions
+from dqnlambda.replay_memory import make_replay_memory as LambdaDQNmakereplaymemory
+
 import argparse
 
 # not technically needed here but it'll fail later if it's not available, so keeping it
@@ -129,7 +134,7 @@ class SimpleDQN_CurriculumAgent(CurriculumAgent):
 
 class DQNLambda_CurriculumAgent(CurriculumAgent):
     def init(self):
-        pass
+        self.agent = LambdaDQN()
 
     def agent_init(self):
         pass
