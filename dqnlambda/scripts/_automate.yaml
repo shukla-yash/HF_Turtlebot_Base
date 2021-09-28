@@ -1,0 +1,55 @@
+---
+dqn-baseline:
+  legacy: true
+  num_seeds: 10
+  timesteps: 10000000
+  env: [beam_rider, breakout, pong, qbert, seaquest, space_invaders]
+  history_len: [1, 4]
+  return_est: [nstep-3]
+
+ablation-cache-size:
+  num_seeds: 10
+  timesteps: 10000000
+  env: [seaquest, space_invaders]
+  history_len: [4]
+  return_est: [nstep-3]
+  cache_size: [80000, 160000, 240000]
+  priority: [0.0]
+
+lambda-sweep:
+  num_seeds: 10
+  timesteps: 10000000
+  env: [beam_rider, breakout, pong, qbert, seaquest, space_invaders]
+  history_len: [4]
+  return_est:
+    - pengs-0.25
+    - pengs-0.5
+    - pengs-0.75
+    - pengs-1.0
+    - watkins-0.25
+    - watkins-0.5
+    - watkins-0.75
+    - watkins-1.0
+  cache_size: [80000]
+  priority: [0.0]
+
+showcase:
+  num_seeds: 10
+  timesteps: 10000000
+  env: [beam_rider, breakout, pong, qbert, seaquest, space_invaders]
+  history_len: [4]
+  return_est:
+    - pengs-median
+    - pengs-maxtd-0.025
+  cache_size: [80000]
+  priority: [0.1]
+
+partial-observability:
+  num_seeds: 10
+  timesteps: 10000000
+  env: [beam_rider, breakout, pong, qbert, seaquest, space_invaders]
+  history_len: [1]
+  return_est: [pengs-median]
+  cache_size: [80000]
+  priority: [0.1]
+...
