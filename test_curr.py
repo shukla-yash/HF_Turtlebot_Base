@@ -181,7 +181,7 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
                                            self.cache_size, self.block_size, self.priority)
         input_shape = (self.replay_memory.history_len, *self.env.observation_space.shape)
         n_actions = self.env.action_space.n
-        self.benchmark_env = HistoryWrapper(self.benchmark_env, self.replay_memory.history_len)
+        self.benchmark_env = HistoryWrapper(self.env, self.replay_memory.history_len)
 
         # Build TensorFlow model
         self.state_ph  = tf.placeholder(self.env.observation_space.dtype, [None] + list(input_shape))
@@ -235,11 +235,13 @@ class DQNLambda_CurriculumAgent(CurriculumAgent):
     def update_parameters(self):
         pass
 
-    def q_function(self, state_ph, n_actions, scope):
+    def q_function(self, state, n_actions, scope):
         # TODO- stand-in from atari env, probably needs to be customized a bit
         hidden = tf.cast(state, tf.float32) / 255.0  # type: ignore
         hidden = tf.unstack(hidden, axis=1)
         hidden = tf.concat(hidden, axis=-1)
+
+        # not sure what's going on here tbh --cst
 
         with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
             hidden = conv2d(

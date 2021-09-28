@@ -59,17 +59,18 @@ class ReplayMemory:
 
         # Main variables for memory
         self.obs = None  # Allocated dynamically once shape/dtype are known
-        self.actions = np.empty([self.capacity], dtype=np.int32)
-        self.rewards = np.empty([self.capacity], dtype=np.float32)
-        self.dones = np.empty([self.capacity], dtype=np.bool)
+        print("Replay memory on capacity size "+str(self.capacity)+", cache size "+str(self.cache_size))
+        self.actions = np.empty([int(self.capacity)], dtype=np.int32)
+        self.rewards = np.empty([int(self.capacity)], dtype=np.float32)
+        self.dones = np.empty([int(self.capacity)], dtype=np.bool)
         self.next = 0  # Points to next transition to be overwritten
 
         # Auxiliary buffers for the cache -- pre-allocated to smooth memory usage
         self.cached_states  = None  # Allocated dynamically once shape/dtype are known
-        self.cached_actions = np.empty([self.cache_size], dtype=np.int32)
-        self.cached_returns = np.empty([self.cache_size], dtype=np.float32)
-        self.cached_errors  = np.empty([self.cache_size], dtype=np.float32)
-        self.cached_indices = np.empty([self.cache_size], dtype=np.int32)
+        self.cached_actions = np.empty([int(self.cache_size)], dtype=np.int32)
+        self.cached_returns = np.empty([int(self.cache_size)], dtype=np.float32)
+        self.cached_errors  = np.empty([int(self.cache_size)], dtype=np.float32)
+        self.cached_indices = np.empty([int(self.cache_size)], dtype=np.int32)
 
     def register_refresh_func(self, f):
         assert self.refresh_func is None
@@ -114,15 +115,15 @@ class ReplayMemory:
 
     def store_obs(self, obs):
         if self.obs is None:
-            self.obs = np.empty([self.capacity, *obs.shape], dtype=obs.dtype)
+            self.obs = np.empty([int(self.capacity), *obs.shape], dtype=obs.dtype)
         if self.cached_states is None:
-            self.cached_states = np.empty([self.cache_size, self.history_len, *obs.shape], dtype=obs.dtype)
-        self.obs[self.next] = obs
+            self.cached_states = np.empty([int(self.cache_size), self.history_len, *obs.shape], dtype=obs.dtype)
+        self.obs[int(self.next)] = obs
 
     def store_effect(self, action, reward, done):
-        self.actions[self.next] = action
-        self.rewards[self.next] = reward
-        self.dones[self.next] = done
+        self.actions[int(self.next)] = action
+        self.rewards[int(self.next)] = reward
+        self.dones[int(self.next)] = done
 
         self.next = (self.next + 1) % self.capacity
         self.num_samples = min(self.capacity, self.num_samples + 1)
